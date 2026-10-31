@@ -4,7 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "devEngines": {
-    "packageManager": { "name": "pnpm", "version": "12.6.0", "onFail": "download" }
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.6.0",
+      "onFail": "download"
+    }
   },
   "scripts": {
     "dev": "vite",
@@ -15,6 +19,7 @@
   "dependencies": {
     "@parity/product-sdk": "0.39.0",
     "@parity/product-sdk-descriptors": "npm:@polkadot-community-foundation/product-sdk-descriptors@0.14.0-pcf.1",
+    "firebase": "12.19.0",
     "polkadot-api": "3.2.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",

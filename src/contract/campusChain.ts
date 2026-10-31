@@ -60,7 +60,9 @@ async function read<T>(session: Session, name: string, ...args: unknown[]): Prom
 
 // Escritura: simula primero (sin firma), luego firma y espera la transacción finalizada.
 // Así un revert se muestra sin pedir firma al usuario en el Host.
-export async function write(session: Session, name: string, ...args: unknown[]): Promise<void> {
+// Devuelve el valor de la simulación (p. ej. el id de createProduct); puede diferir del real
+// si otra transacción entró antes, así que quien lo use debe confirmarlo leyendo el contrato.
+export async function write(session: Session, name: string, ...args: unknown[]): Promise<unknown> {
   const method = contractMethod(session, name);
   const preview = await method.query(...args, { origin: session.address });
   if (!preview.success) throw new Error(`${name} revirtió: ${String(preview.value)}`);
@@ -70,17 +72,20 @@ export async function write(session: Session, name: string, ...args: unknown[]):
     timeoutMs: 300_000,
   });
   if (!sent.ok) throw sent.error instanceof Error ? sent.error : new Error(`${name} falló`);
+  return preview.value;
+}
+
+export async function getProduct(session: Session, id: bigint): Promise<Product> {
+  const [seller, name, description, category, pickupPoint, priceCents, available] = await read<
+    [string, string, string, string, string, bigint, boolean]
+  >(session, 'getProduct', id);
+  return { id, seller, name, description, category, pickupPoint, priceCents, available };
 }
 
 export async function listProducts(session: Session): Promise<Product[]> {
   const count = await read<bigint>(session, 'productCount');
   const items: Product[] = [];
-  for (let id = 1n; id <= count; id++) {
-    const [seller, name, description, category, pickupPoint, priceCents, available] = await read<
-      [string, string, string, string, string, bigint, boolean]
-    >(session, 'getProduct', id);
-    items.push({ id, seller, name, description, category, pickupPoint, priceCents, available });
-  }
+  for (let id = 1n; id <= count; id++) items.push(await getProduct(session, id));
   return items;
 }
 

@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react';
+import type { User } from 'firebase/auth';
 import type { Session } from '../hub/hub';
-import { write } from '../contract/campusChain';
+import { getProduct, write } from '../contract/campusChain';
+import { asegurarVendedor, guardarProducto, intentarCopia } from '../firebase/db';
 import { errorMessage, pesosToCents } from '../lib/format';
 
-export function SellView({ session }: { session: Session }) {
+export function SellView({ session, usuario }: { session: Session; usuario: User }) {
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [categoria, setCategoria] = useState('');
@@ -24,8 +26,27 @@ export function SellView({ session }: { session: Session }) {
     setError(null);
     setMensaje(null);
     try {
-      await write(session, 'createProduct', nombre.trim(), descripcion.trim(), categoria.trim(), punto.trim(), priceCents);
+      const id = (await write(
+        session,
+        'createProduct',
+        nombre.trim(),
+        descripcion.trim(),
+        categoria.trim(),
+        punto.trim(),
+        priceCents,
+      )) as bigint;
       setMensaje(`Producto publicado: ${nombre.trim()}.`);
+
+      // El id viene de la simulación: se confirma que ese producto es el que acaba de publicar esta cuenta.
+      const aviso = await intentarCopia(async () => {
+        const producto = await getProduct(session, id);
+        if (producto.seller.toLowerCase() !== session.h160.toLowerCase() || producto.name !== nombre.trim()) {
+          throw new Error('no se pudo confirmar el id del producto');
+        }
+        await asegurarVendedor(usuario, session.h160);
+        await guardarProducto(usuario, producto);
+      });
+      if (aviso) setError(aviso);
       setNombre('');
       setDescripcion('');
       setCategoria('');

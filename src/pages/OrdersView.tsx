@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { User } from 'firebase/auth';
 import type { Session } from '../hub/hub';
 import {
   getBuyerOrderIds,
@@ -11,27 +12,29 @@ import {
   type HistoryEntry,
   type Order,
 } from '../contract/campusChain';
+import { intentarCopia, registrarEstado } from '../firebase/db';
 import { errorMessage, formatMxn, formatTimestamp, shortAddress } from '../lib/format';
 import { computeOrderHash } from '../lib/orderHash';
 
-type Action = { label: string; method: string };
+// next = estado en que queda el pedido si la transacción pasa (enum Status del contrato).
+type Action = { label: string; method: string; next: number };
 
 // Quién puede hacer qué según el estado. El contrato vuelve a validar rol y estado.
 function accionesPara(order: Order, rol: 'comprador' | 'vendedor'): Action[] {
   if (rol === 'vendedor') {
-    if (order.status === 1) return [{ label: 'Aceptar pedido', method: 'acceptOrder' }];
-    if (order.status === 2) return [{ label: 'Declarar pago recibido', method: 'reportPayment' }];
-    if (order.status === 3) return [{ label: 'Marcar como entregado', method: 'confirmDelivery' }];
+    if (order.status === 1) return [{ label: 'Aceptar pedido', method: 'acceptOrder', next: 2 }];
+    if (order.status === 2) return [{ label: 'Declarar pago recibido', method: 'reportPayment', next: 3 }];
+    if (order.status === 3) return [{ label: 'Marcar como entregado', method: 'confirmDelivery', next: 4 }];
     return [];
   }
-  if (order.status === 1) return [{ label: 'Cancelar pedido', method: 'cancelOrder' }];
-  if (order.status === 4) return [{ label: 'Confirmar recepción', method: 'completeOrder' }];
+  if (order.status === 1) return [{ label: 'Cancelar pedido', method: 'cancelOrder', next: 6 }];
+  if (order.status === 4) return [{ label: 'Confirmar recepción', method: 'completeOrder', next: 5 }];
   return [];
 }
 
 type Row = { order: Order; history: HistoryEntry[] };
 
-export function OrdersView({ session }: { session: Session }) {
+export function OrdersView({ session, usuario }: { session: Session; usuario: User }) {
   const [compras, setCompras] = useState<Row[] | null>(null);
   const [ventas, setVentas] = useState<Row[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -84,6 +87,8 @@ export function OrdersView({ session }: { session: Session }) {
     setError(null);
     try {
       await write(session, action.method, orderId);
+      const aviso = await intentarCopia(() => registrarEstado(usuario, orderId, action.next, session.h160));
+      if (aviso) setError(aviso);
       await cargar();
     } catch (e) {
       setError(errorMessage(e));

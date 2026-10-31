@@ -1,0 +1,96 @@
+rules_version = '2';
+
+// Reglas de CampusChain. El filtro de dominio se repite aquí porque la validación de la app
+// se puede saltar llamando a Firebase directamente: sin correo @uanl.edu.mx no se lee ni escribe nada.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function esUanl() {
+      return request.auth != null
+        && request.auth.token.email is string
+        && request.auth.token.email.lower().matches('^[^@\\s]+@uanl[.]edu[.]mx$');
+    }
+
+    function esDueno(uid) {
+      return esUanl() && request.auth.uid == uid;
+    }
+
+    function registrado() {
+      return exists(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+
+    function esVendedor() {
+      return exists(/databases/$(database)/documents/vendedores/$(request.auth.uid));
+    }
+
+    function soloCambia(campos) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos);
+    }
+
+    function esParte(pedido) {
+      return pedido.compradorUid == request.auth.uid || pedido.vendedorUid == request.auth.uid;
+    }
+
+    // Registro del estudiante. Solo él lo ve; después de crearlo solo puede cambiar la wallet.
+    match /usuarios/{uid} {
+      allow read: if esDueno(uid);
+      allow create: if esDueno(uid)
+        && request.resource.data.keys().hasOnly(['email', 'rol', 'wallet', 'creadoEn'])
+        && request.resource.data.email == request.auth.token.email.lower()
+        && request.resource.data.rol == 'estudiante'
+        && request.resource.data.wallet == null;
+      allow update: if esDueno(uid) && soloCambia(['wallet']) && request.resource.data.wallet is string;
+      allow delete: if false;
+    }
+
+    // Perfil de vendedor. Visible para estudiantes registrados (para saber quién vende).
+    match /vendedores/{uid} {
+      allow read: if esUanl() && registrado();
+      allow create: if esDueno(uid) && registrado()
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'wallet', 'activo', 'creadoEn'])
+        && request.resource.data.uid == uid
+        && request.resource.data.email == request.auth.token.email.lower()
+        && request.resource.data.activo == true;
+      allow update: if esDueno(uid) && soloCambia(['wallet', 'activo']);
+      allow delete: if false;
+    }
+
+    // Copia de los productos del contrato. Id del documento = id del producto en el contrato.
+    match /productos/{productId} {
+      allow read: if esUanl() && registrado();
+      allow create: if esUanl() && esVendedor()
+        && request.resource.data.vendedorUid == request.auth.uid
+        && request.resource.data.productId == productId
+        && request.resource.data.precioCents is int
+        && request.resource.data.precioCents > 0;
+      allow update: if esUanl() && resource.data.vendedorUid == request.auth.uid
+        && soloCambia(['disponible', 'actualizadoEn']);
+      allow delete: if false;
+    }
+
+    // Copia de los pedidos. Solo los ven comprador y vendedor; el estado solo avanza.
+    match /pedidos/{orderId} {
+      allow read: if esUanl() && esParte(resource.data);
+      allow create: if esUanl() && registrado()
+        && request.resource.data.orderId == orderId
+        && request.resource.data.compradorUid == request.auth.uid
+        && request.resource.data.vendedorUid != request.auth.uid
+        && request.resource.data.estado == 1;
+      allow update: if esUanl() && esParte(resource.data)
+        && soloCambia(['estado', 'actualizadoEn'])
+        && request.resource.data.estado is int
+        && request.resource.data.estado > resource.data.estado
+        && request.resource.data.estado <= 6;
+      allow delete: if false;
+
+      match /eventos/{eventoId} {
+        allow read: if esUanl()
+          && esParte(get(/databases/$(database)/documents/pedidos/$(orderId)).data);
+        allow create: if esUanl()
+          && esParte(get(/databases/$(database)/documents/pedidos/$(orderId)).data)
+          && request.resource.data.porUid == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+  }
+}

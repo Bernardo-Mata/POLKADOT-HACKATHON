@@ -30,6 +30,45 @@ Revisión del entorno:
 node .agents/skills/polkadot-products-devnet/scripts/verificar-entorno.mjs .
 ```
 
+## Firebase: registro UANL y datos de vendedores
+
+La app pide cuenta antes de conectar la wallet. Dos filtros:
+
+1. **Registro**: el correo debe terminar en `@uanl.edu.mx` y la contraseña no puede quedar en blanco
+   (Firebase exige 6 caracteres o más). Se crea la cuenta en Firebase Authentication y su documento en `usuarios/{uid}`.
+2. **Inicio de sesión**: Firebase Auth compara la contraseña con la del registro y la app comprueba que
+   exista `usuarios/{uid}` con el mismo correo. La contraseña nunca se guarda en Firestore.
+
+`firestore.rules` repite el filtro del dominio en el servidor: una cuenta creada con otro correo no puede leer ni escribir nada.
+
+Colecciones (copia de consulta ligada a la cuenta UANL; la fuente de verdad sigue siendo el contrato):
+
+| Colección | Id | Qué guarda |
+|---|---|---|
+| `usuarios` | uid | correo, rol, wallet vinculada |
+| `vendedores` | uid | correo, wallet con la que publica, activo |
+| `productos` | id del contrato | nombre, descripción, categoría, punto, precio, disponible, vendedorUid |
+| `pedidos` | `orderId` (bytes32) | comprador/vendedor (uid y wallet), cantidad, total, `orderHash`, estado |
+| `pedidos/{id}/eventos` | automático | cada cambio de estado: estado, quién y cuándo |
+
+Las métricas del vendedor no se guardan: salen del contrato (`getSellerStats`) y de `pedidos`, para que nadie escriba las suyas.
+
+Puesta en marcha:
+
+1. En [Firebase console](https://console.firebase.google.com): crear el proyecto, activar **Authentication → Email/Password** y crear **Firestore** en modo producción.
+2. Registrar una app web y copiar su configuración a `.env` (`VITE_FIREBASE_*`, ver `.env.example`).
+3. Desplegar las reglas:
+
+   ```sh
+   pnpm dlx firebase-tools login
+   pnpm dlx firebase-tools deploy --only firestore --project <id-del-proyecto>
+   ```
+
+4. En **Authentication → Settings → Authorized domains**, agregar el dominio donde se abre la app (`tu-app.dot.li`, `tu-app.dev-dot.li`…).
+
+Pendiente de verificar: dentro de un Host, las peticiones HTTP salen solo a dominios permitidos por el manifest
+(`app-sdk.md`, «Reglas del sandbox»). Firebase usa `*.googleapis.com` y `<proyecto>.firebaseapp.com`.
+
 ## Desplegar el contrato
 
 1. En [Remix](https://remix.ethereum.org): crear `CampusChain.sol` con el contenido de `contracts/`.

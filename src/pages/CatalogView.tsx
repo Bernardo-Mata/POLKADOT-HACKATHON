@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
+import type { User } from 'firebase/auth';
 import type { Session } from '../hub/hub';
 import { getSellerStats, listProducts, newOrderId, write, type Product, type SellerStats } from '../contract/campusChain';
+import { actualizarDisponibilidad, guardarPedido, intentarCopia } from '../firebase/db';
 import { errorMessage, formatMxn, shortAddress } from '../lib/format';
 import { computeOrderHash } from '../lib/orderHash';
 
 type Card = Product & { sellerStats: SellerStats };
 
-export function CatalogView({ session }: { session: Session }) {
+export function CatalogView({ session, usuario }: { session: Session; usuario: User }) {
   const [items, setItems] = useState<Card[] | null>(null);
   const [busy, setBusy] = useState<bigint | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +49,18 @@ export function CatalogView({ session }: { session: Session }) {
       });
       await write(session, 'createOrder', orderId, producto.id, 1n, orderHash);
       setMensaje(`Pedido creado: ${producto.name}. Revísalo en Pedidos.`);
+      const aviso = await intentarCopia(() =>
+        guardarPedido(usuario, {
+          orderId,
+          productId: producto.id,
+          cantidad: 1n,
+          totalCents: producto.priceCents,
+          orderHash,
+          compradorWallet: session.h160,
+          vendedorWallet: producto.seller,
+        }),
+      );
+      if (aviso) setError(aviso);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -60,6 +74,8 @@ export function CatalogView({ session }: { session: Session }) {
     setMensaje(null);
     try {
       await write(session, 'setAvailable', producto.id, !producto.available);
+      const aviso = await intentarCopia(() => actualizarDisponibilidad(producto.id, !producto.available));
+      if (aviso) setError(aviso);
       await cargar();
     } catch (e) {
       setError(errorMessage(e));
