@@ -15,6 +15,7 @@ export type Product = {
   id: bigint;
   seller: string;
   name: string;
+  description: string;
   category: string;
   pickupPoint: string;
   priceCents: bigint;
@@ -28,6 +29,7 @@ export type Order = {
   seller: string;
   quantity: bigint;
   totalCents: bigint;
+  orderHash: `0x${string}`;
   status: number;
   createdAt: bigint;
 };
@@ -70,27 +72,28 @@ export async function write(session: Session, name: string, ...args: unknown[]):
   if (!sent.ok) throw sent.error instanceof Error ? sent.error : new Error(`${name} falló`);
 }
 
-export async function isStudent(session: Session, account: string): Promise<boolean> {
-  return read<boolean>(session, 'isStudent', account);
-}
-
 export async function listProducts(session: Session): Promise<Product[]> {
   const count = await read<bigint>(session, 'productCount');
   const items: Product[] = [];
   for (let id = 1n; id <= count; id++) {
-    const [seller, name, category, pickupPoint, priceCents, available] = await read<
-      [string, string, string, string, bigint, boolean]
+    const [seller, name, description, category, pickupPoint, priceCents, available] = await read<
+      [string, string, string, string, string, bigint, boolean]
     >(session, 'getProduct', id);
-    items.push({ id, seller, name, category, pickupPoint, priceCents, available });
+    items.push({ id, seller, name, description, category, pickupPoint, priceCents, available });
   }
   return items;
 }
 
 export async function getOrder(session: Session, orderId: string): Promise<Order> {
-  const [productId, buyer, seller, quantity, totalCents, status, createdAt] = await read<
-    [bigint, string, string, bigint, bigint, number, bigint]
+  const [productId, buyer, seller, quantity, totalCents, orderHash, status, createdAt] = await read<
+    [bigint, string, string, bigint, bigint, `0x${string}`, number, bigint]
   >(session, 'getOrder', orderId);
-  return { id: orderId, productId, buyer, seller, quantity, totalCents, status, createdAt };
+  return { id: orderId, productId, buyer, seller, quantity, totalCents, orderHash, status, createdAt };
+}
+
+// Compara el hash recalculado en la app con el guardado en el contrato.
+export async function verifyOrderHash(session: Session, orderId: string, hash: `0x${string}`): Promise<boolean> {
+  return read<boolean>(session, 'verifyOrderHash', orderId, hash);
 }
 
 export async function getHistory(session: Session, orderId: string): Promise<HistoryEntry[]> {

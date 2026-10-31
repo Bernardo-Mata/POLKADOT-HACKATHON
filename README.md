@@ -36,11 +36,11 @@ node .agents/skills/polkadot-products-devnet/scripts/verificar-entorno.mjs .
 2. Compilador `0.8.28`, optimizador apagado.
 3. *Deploy & run*: entorno **Injected Provider – MetaMask**, red `420420417`. Desplegar.
 4. Copiar la dirección a `VITE_CONTRACT_ADDRESS` y regenerar `src/contract/campusChain.abi.json` desde la pestaña ABI de Remix (no editarlo a mano).
-5. Desde la cuenta que desplegó (dueña del contrato), registrar las cuentas de demo con `registerStudent`. Usar la dirección `0x…` que la app muestra al conectarse (`msg.sender` del Product), no la de MetaMask del vendedor.
+5. No hace falta registrar cuentas: cualquier cuenta que se conecte desde el Host puede publicar y pedir.
 
 ## Publicar en `.dot`
 
-La cuenta del Product depende del nombre `.dot`: cambiar de nombre cambia las direcciones que el contrato ve. Por eso conviene fijar el nombre final desde el principio y registrar a los estudiantes con las direcciones de ese nombre.
+La cuenta del Product depende del nombre `.dot`: cambiar de nombre cambia la dirección que el contrato ve como vendedor o comprador. Por eso conviene fijar el nombre final desde el principio.
 
 1. Registrar el nombre final de 9 caracteres o más (ver `publicar.md`, sección 1).
 2. `pnpm build`.
@@ -67,7 +67,7 @@ Detalles y errores conocidos: `.agents/skills/polkadot-products-devnet/reference
 ## Limitaciones que se muestran en la app
 
 - "Pago reportado por el vendedor": el contrato registra la declaración del vendedor, no verifica transferencias.
-- "Estudiante verificado (demo)": la allowlist la administra el dueño del contrato; no es una verificación institucional.
+- No hay verificación de identidad: cualquier cuenta conectada desde el Host puede publicar y pedir. La identidad universitaria queda fuera del MVP.
 - La reputación cuenta pedidos completados según el registro; no garantiza honestidad.
 
 ## Estructura

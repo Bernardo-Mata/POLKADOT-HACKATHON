@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { connectSession, OutsideHostError, type Session } from './hub/hub';
-import { isStudent } from './contract/campusChain';
 import { CatalogView } from './pages/CatalogView';
 import { SellView } from './pages/SellView';
 import { OrdersView } from './pages/OrdersView';
@@ -17,16 +16,13 @@ export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [tab, setTab] = useState<Tab>('catalogo');
   const [connecting, setConnecting] = useState(false);
-  const [verificado, setVerificado] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function conectar() {
     setConnecting(true);
     setError(null);
     try {
-      const nueva = await connectSession();
-      setVerificado(await isStudent(nueva, nueva.h160));
-      setSession(nueva);
+      setSession(await connectSession());
     } catch (e) {
       setError(e instanceof OutsideHostError ? e.message : `No se pudo conectar: ${String(e)}`);
     } finally {
@@ -50,13 +46,6 @@ export function App() {
       </header>
 
       {error && <p className="aviso error">{error}</p>}
-
-      {session && verificado === false && (
-        <p className="aviso error">
-          Esta cuenta no está verificada. Pide a un administrador que registre tu dirección{' '}
-          <code>{session.h160}</code> con <code>registerStudent</code>.
-        </p>
-      )}
 
       {!session && !error && (
         <p className="aviso">

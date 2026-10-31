@@ -18,6 +18,7 @@ contract CampusChain {
     struct Product {
         address seller;
         string name;
+        string description;
         string category;
         string pickupPoint;
         uint256 priceCents;
@@ -30,6 +31,7 @@ contract CampusChain {
         address seller;
         uint256 quantity;
         uint256 totalCents;
+        bytes32 orderHash;
         Status status;
         uint256 createdAt;
     }
@@ -46,8 +48,6 @@ contract CampusChain {
         uint256 cancelled;
     }
 
-    error NotOwner();
-    error NotStudent();
     error ProductNotFound();
     error ProductUnavailable();
     error OrderExists();
@@ -58,7 +58,6 @@ contract CampusChain {
     error SelfPurchase();
     error InvalidQuantity();
 
-    event StudentRegistered(address indexed account);
     event ProductCreated(uint256 indexed productId, address indexed seller, uint256 priceCents);
     event ProductAvailabilityChanged(uint256 indexed productId, bool available);
     event OrderCreated(
@@ -75,7 +74,6 @@ contract CampusChain {
         uint256 timestamp
     );
 
-    address public immutable owner;
     uint256 public productCount;
 
     mapping(uint256 => Product) private products;
@@ -84,17 +82,6 @@ contract CampusChain {
     mapping(address => SellerStats) private stats;
     mapping(address => bytes32[]) private buyerOrders;
     mapping(address => bytes32[]) private sellerOrders;
-    mapping(address => bool) public isStudent;
-
-    modifier onlyOwner() {
-        if (msg.sender != owner) revert NotOwner();
-        _;
-    }
-
-    modifier onlyStudent() {
-        if (!isStudent[msg.sender]) revert NotStudent();
-        _;
-    }
 
     modifier orderExists(bytes32 orderId) {
         if (orders[orderId].status == Status.NONE) revert OrderNotFound();
@@ -117,26 +104,18 @@ contract CampusChain {
         _;
     }
 
-    constructor() {
-        owner = msg.sender;
-    }
-
-    /// @notice Marca una cuenta como estudiante verificado (verificación de demostración).
-    function registerStudent(address account) external onlyOwner {
-        isStudent[account] = true;
-        emit StudentRegistered(account);
-    }
-
     function createProduct(
         string calldata name,
+        string calldata description,
         string calldata category,
         string calldata pickupPoint,
         uint256 priceCents
-    ) external onlyStudent returns (uint256 id) {
+    ) external returns (uint256 id) {
         id = ++productCount;
         products[id] = Product({
             seller: msg.sender,
             name: name,
+            description: description,
             category: category,
             pickupPoint: pickupPoint,
             priceCents: priceCents,
@@ -153,7 +132,8 @@ contract CampusChain {
         emit ProductAvailabilityChanged(productId, available);
     }
 
-    function createOrder(bytes32 orderId, uint256 productId, uint256 quantity) external onlyStudent {
+    /// @notice orderHash lo calcula la app a partir de los datos del pedido; el contrato lo guarda tal cual.
+    function createOrder(bytes32 orderId, uint256 productId, uint256 quantity, bytes32 orderHash) external {
         if (orders[orderId].status != Status.NONE) revert OrderExists();
         if (quantity == 0) revert InvalidQuantity();
 
@@ -169,6 +149,7 @@ contract CampusChain {
             seller: product.seller,
             quantity: quantity,
             totalCents: totalCents,
+            orderHash: orderHash,
             status: Status.CREATED,
             createdAt: block.timestamp
         });
@@ -235,6 +216,7 @@ contract CampusChain {
         returns (
             address seller,
             string memory name,
+            string memory description,
             string memory category,
             string memory pickupPoint,
             uint256 priceCents,
@@ -246,6 +228,7 @@ contract CampusChain {
         return (
             product.seller,
             product.name,
+            product.description,
             product.category,
             product.pickupPoint,
             product.priceCents,
@@ -262,6 +245,7 @@ contract CampusChain {
             address seller,
             uint256 quantity,
             uint256 totalCents,
+            bytes32 orderHash,
             Status status,
             uint256 createdAt
         )
@@ -273,9 +257,19 @@ contract CampusChain {
             order.seller,
             order.quantity,
             order.totalCents,
+            order.orderHash,
             order.status,
             order.createdAt
         );
+    }
+
+    function verifyOrderHash(bytes32 orderId, bytes32 hash)
+        external
+        view
+        orderExists(orderId)
+        returns (bool)
+    {
+        return orders[orderId].orderHash == hash;
     }
 
     function getHistory(bytes32 orderId) external view returns (HistoryEntry[] memory) {

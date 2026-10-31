@@ -5,6 +5,7 @@ import { errorMessage, pesosToCents } from '../lib/format';
 
 export function SellView({ session }: { session: Session }) {
   const [nombre, setNombre] = useState('');
+  const [descripcion, setDescripcion] = useState('');
   const [categoria, setCategoria] = useState('');
   const [punto, setPunto] = useState('');
   const [precio, setPrecio] = useState('');
@@ -23,9 +24,10 @@ export function SellView({ session }: { session: Session }) {
     setError(null);
     setMensaje(null);
     try {
-      await write(session, 'createProduct', nombre.trim(), categoria.trim(), punto.trim(), priceCents);
+      await write(session, 'createProduct', nombre.trim(), descripcion.trim(), categoria.trim(), punto.trim(), priceCents);
       setMensaje(`Producto publicado: ${nombre.trim()}.`);
       setNombre('');
+      setDescripcion('');
       setCategoria('');
       setPunto('');
       setPrecio('');
@@ -39,11 +41,14 @@ export function SellView({ session }: { session: Session }) {
   return (
     <section className="formulario">
       <h2>Publicar producto</h2>
-      <p className="pequeno">Solo cuentas de estudiante verificado (demo) pueden publicar.</p>
       <form onSubmit={publicar}>
         <label>
           Nombre
           <input value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+        </label>
+        <label>
+          Descripción
+          <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} required />
         </label>
         <label>
           Categoría

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '../hub/hub';
-import { getSellerStats, isStudent, listProducts, newOrderId, write, type Product, type SellerStats } from '../contract/campusChain';
+import { getSellerStats, listProducts, newOrderId, write, type Product, type SellerStats } from '../contract/campusChain';
 import { errorMessage, formatMxn, shortAddress } from '../lib/format';
+import { computeOrderHash } from '../lib/orderHash';
 
-type Card = Product & { sellerStats: SellerStats; sellerVerified: boolean };
+type Card = Product & { sellerStats: SellerStats };
 
 export function CatalogView({ session }: { session: Session }) {
   const [items, setItems] = useState<Card[] | null>(null);
@@ -18,7 +19,6 @@ export function CatalogView({ session }: { session: Session }) {
         productos.map(async (p) => ({
           ...p,
           sellerStats: await getSellerStats(session, p.seller),
-          sellerVerified: await isStudent(session, p.seller),
         })),
       );
       setItems(tarjetas);
@@ -36,8 +36,31 @@ export function CatalogView({ session }: { session: Session }) {
     setError(null);
     setMensaje(null);
     try {
-      await write(session, 'createOrder', newOrderId(), producto.id, 1n);
+      const orderId = newOrderId();
+      const orderHash = computeOrderHash({
+        orderId,
+        productId: producto.id,
+        quantity: 1n,
+        unitPriceCents: producto.priceCents,
+        buyer: session.h160,
+        seller: producto.seller as `0x${string}`,
+      });
+      await write(session, 'createOrder', orderId, producto.id, 1n, orderHash);
       setMensaje(`Pedido creado: ${producto.name}. Revísalo en Pedidos.`);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function cambiarDisponibilidad(producto: Product) {
+    setBusy(producto.id);
+    setError(null);
+    setMensaje(null);
+    try {
+      await write(session, 'setAvailable', producto.id, !producto.available);
+      await cargar();
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -58,11 +81,9 @@ export function CatalogView({ session }: { session: Session }) {
           <article key={p.id.toString()} className="tarjeta">
             <h2>{p.name}</h2>
             <p className="precio">{formatMxn(p.priceCents)}</p>
+            <p>{p.description}</p>
             <p>{p.category} · Entrega: {p.pickupPoint}</p>
-            <p className="pequeno">
-              Vendedor {shortAddress(p.seller)}{' '}
-              {p.sellerVerified ? <span className="insignia">Estudiante verificado (demo)</span> : null}
-            </p>
+            <p className="pequeno">Vendedor {shortAddress(p.seller)}</p>
             <p className="pequeno">
               Completados {p.sellerStats.completed.toString()} · Aceptados {p.sellerStats.accepted.toString()} ·
               Cancelados {p.sellerStats.cancelled.toString()}
@@ -78,6 +99,11 @@ export function CatalogView({ session }: { session: Session }) {
             >
               {!p.available ? 'No disponible' : p.seller === session.h160 ? 'Tu producto' : busy === p.id ? 'Firmando…' : 'Pedir'}
             </button>
+            {p.seller === session.h160 && (
+              <button className="secundario" disabled={busy !== null} onClick={() => cambiarDisponibilidad(p)}>
+                {p.available ? 'Marcar no disponible' : 'Marcar disponible'}
+              </button>
+            )}
           </article>
         ))}
       </div>

@@ -6,11 +6,13 @@ import {
   getOrder,
   getSellerOrderIds,
   STATUS_LABEL,
+  verifyOrderHash,
   write,
   type HistoryEntry,
   type Order,
 } from '../contract/campusChain';
 import { errorMessage, formatMxn, formatTimestamp, shortAddress } from '../lib/format';
+import { computeOrderHash } from '../lib/orderHash';
 
 type Action = { label: string; method: string };
 
@@ -34,6 +36,26 @@ export function OrdersView({ session }: { session: Session }) {
   const [ventas, setVentas] = useState<Row[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [verificados, setVerificados] = useState<Record<string, boolean>>({});
+
+  // El precio unitario sale del total: totalCents = precio × cantidad, sin redondeo.
+  async function verificar(order: Order) {
+    setError(null);
+    try {
+      const hash = computeOrderHash({
+        orderId: order.id as `0x${string}`,
+        productId: order.productId,
+        quantity: order.quantity,
+        unitPriceCents: order.totalCents / order.quantity,
+        buyer: order.buyer as `0x${string}`,
+        seller: order.seller as `0x${string}`,
+      });
+      const coincide = await verifyOrderHash(session, order.id, hash);
+      setVerificados((v) => ({ ...v, [order.id]: coincide }));
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  }
 
   async function cargarFilas(ids: string[]): Promise<Row[]> {
     return Promise.all(
@@ -91,6 +113,13 @@ export function OrdersView({ session }: { session: Session }) {
                 </li>
               ))}
             </ol>
+            <p className="pequeno">
+              <button className="secundario" onClick={() => verificar(order)}>
+                Verificar hash
+              </button>{' '}
+              {verificados[order.id] === true && <span className="insignia">✓ Coincide con el contrato</span>}
+              {verificados[order.id] === false && <span className="aviso error">✗ No coincide</span>}
+            </p>
             {accionesPara(order, rol).map((a) => (
               <button key={a.method} disabled={busy !== null} onClick={() => ejecutar(order.id, a)}>
                 {busy === order.id ? 'Firmando…' : a.label}
