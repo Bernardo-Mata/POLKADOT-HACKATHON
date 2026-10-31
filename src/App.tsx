@@ -101,6 +101,13 @@ export function App() {
 
       {error && <p className="aviso error">{error}</p>}
 
+      {session && session.gas !== 'Allocated' && (
+        <p className="aviso error">
+          El Host no asignó gas a la app ({session.gas}). Publicar y pedir van a fallar: vuelve a conectar y acepta el
+          permiso de gas.
+        </p>
+      )}
+
       {!session && !error && (
         <p className="aviso">
           Conecta tu cuenta desde Polkadot Desktop o la Polkadot App para usar el marketplace.

@@ -34,6 +34,8 @@ export type Session = {
   address: string; // SS58 de la cuenta del Product
   h160: `0x${string}`; // msg.sender del contrato
   contract: ReturnType<typeof createContract>;
+  // Resultado de pedir PGAS: 'Allocated' | 'Rejected' | 'NotAvailable', o el motivo si la petición falló.
+  gas: string;
 };
 
 export async function connectSession(): Promise<Session> {
@@ -61,14 +63,16 @@ export async function connectSession(): Promise<Session> {
   const me = account.value;
 
   // Gas para llamar al contrato. El estudiante no necesita PAS.
-  await requestResourceAllocation([
+  // Sin PGAS las simulaciones fallan, así que se guarda el resultado para mostrarlo.
+  const allocation = await requestResourceAllocation([
     { tag: 'SmartContractAllowance', value: { tag: 'Index', value: DERIVATION_INDEX } },
   ]);
+  const gas = allocation.ok ? String(allocation.value[0]) : `error: ${String(allocation.error)}`;
 
   const contract = createContract(runtime, address, campusChainAbi as AbiEntry[], {
     defaultOrigin: me.address,
     defaultSigner: me.getSigner(),
   });
 
-  return { dappName, address: me.address, h160: me.h160Address as `0x${string}`, contract };
+  return { dappName, address: me.address, h160: me.h160Address as `0x${string}`, contract, gas };
 }
