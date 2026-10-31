@@ -7,7 +7,17 @@ import campusChainAbi from '../contract/campusChain.abi.json';
 import { productIdFromHostname } from '../lib/product';
 
 // Dirección que dio Remix al desplegar CampusChain.sol en Products Devnet (ver README).
-export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS as `0x${string}`;
+const CONTRACT_ADDRESS_ENV: string | undefined = import.meta.env.VITE_CONTRACT_ADDRESS;
+
+// Sin dirección válida, createContract falla con un TypeError poco claro: se avisa antes.
+export function contractAddress(): `0x${string}` {
+  if (!CONTRACT_ADDRESS_ENV || !/^0x[0-9a-fA-F]{40}$/.test(CONTRACT_ADDRESS_ENV)) {
+    throw new Error(
+      'Falta VITE_CONTRACT_ADDRESS. Despliega CampusChain.sol, crea .env con la dirección y vuelve a construir la app.',
+    );
+  }
+  return CONTRACT_ADDRESS_ENV as `0x${string}`;
+}
 
 // Índice de la cuenta derivada del Product. Siempre 0 en esta app.
 const DERIVATION_INDEX = 0;
@@ -27,6 +37,8 @@ export type Session = {
 };
 
 export async function connectSession(): Promise<Session> {
+  // Antes de pedir permisos al Host: si falta la dirección, no tiene sentido conectar.
+  const address = contractAddress();
   if (!(await isInsideContainer())) throw new OutsideHostError();
 
   const dappName = productIdFromHostname(window.location.hostname);
@@ -53,7 +65,7 @@ export async function connectSession(): Promise<Session> {
     { tag: 'SmartContractAllowance', value: { tag: 'Index', value: DERIVATION_INDEX } },
   ]);
 
-  const contract = createContract(runtime, CONTRACT_ADDRESS, campusChainAbi as AbiEntry[], {
+  const contract = createContract(runtime, address, campusChainAbi as AbiEntry[], {
     defaultOrigin: me.address,
     defaultSigner: me.getSigner(),
   });

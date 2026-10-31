@@ -52,7 +52,7 @@ La cuenta del Product depende del nombre `.dot`: cambiar de nombre cambia las di
    ```
 
    Copiar el `CID: bafy…` y pegarlo en el `contenthash` del nombre final desde `dotns.dot` en el Host.
-4. Publicación final con icono y manifest: agregar `public/icono.png` (512×512, PNG), luego:
+4. Publicación final con icono y manifest (el icono es `src/img/e-commerce.png`, 512×512):
 
    ```powershell
    pnpm build
