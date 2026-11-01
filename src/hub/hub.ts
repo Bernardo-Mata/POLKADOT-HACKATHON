@@ -1,6 +1,6 @@
 import { createChainClient } from '@parity/product-sdk/chain';
 import { createContract, createContractRuntimeFromClient, type AbiEntry } from '@parity/product-sdk/contracts';
-import { isInsideContainer, requestResourceAllocation } from '@parity/product-sdk/host';
+import { isInsideContainer, requestPermission, requestResourceAllocation } from '@parity/product-sdk/host';
 import { SignerManager } from '@parity/product-sdk/wallet';
 import { devnet_asset_hub } from '@parity/product-sdk-descriptors/devnet-asset-hub';
 import campusChainAbi from '../contract/campusChain.abi.json';
@@ -36,7 +36,36 @@ export type Session = {
   contract: ReturnType<typeof createContract>;
   // Resultado de pedir PGAS: 'Allocated' | 'Rejected' | 'NotAvailable', o el motivo si la petición falló.
   gas: string;
+  // Permiso ChainSubmit (enviar transacciones): 'Concedido', 'Negado', o el motivo si la petición falló.
+  envio: string;
+  // Último error que lanzó el firmante del Host; el SDK lo reemplaza por un mensaje genérico.
+  firma: { error: unknown };
 };
+
+// Pide el permiso de enviar transacciones. manager.connect() ya lo pide, pero si el Host lo niega
+// solo deja un aviso en consola; aquí se guarda el resultado para mostrarlo.
+export async function pedirPermisoEnvio(): Promise<string> {
+  try {
+    const r = await requestPermission({ tag: 'ChainSubmit', value: undefined });
+    if (!r.ok) return `error: ${r.error instanceof Error ? r.error.message : String(r.error)}`;
+    return r.value ? 'Concedido' : 'Negado';
+  } catch (e) {
+    return `error: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+
+// Envuelve el firmante para guardar el error original. Copia publicKey y signBytes.
+function firmanteConRegistro<T extends (...args: any[]) => any>(base: T, firma: { error: unknown }): T {
+  const envuelto = async (...args: Parameters<T>) => {
+    try {
+      return await base(...args);
+    } catch (e) {
+      firma.error = e;
+      throw e;
+    }
+  };
+  return Object.assign(envuelto, base) as unknown as T;
+}
 
 export async function connectSession(): Promise<Session> {
   // Antes de pedir permisos al Host: si falta la dirección, no tiene sentido conectar.
@@ -68,11 +97,13 @@ export async function connectSession(): Promise<Session> {
     { tag: 'SmartContractAllowance', value: { tag: 'Index', value: DERIVATION_INDEX } },
   ]);
   const gas = allocation.ok ? String(allocation.value[0]) : `error: ${String(allocation.error)}`;
+  const envio = await pedirPermisoEnvio();
 
+  const firma = { error: undefined as unknown };
   const contract = createContract(runtime, address, campusChainAbi as AbiEntry[], {
     defaultOrigin: me.address,
-    defaultSigner: me.getSigner(),
+    defaultSigner: firmanteConRegistro(me.getSigner(), firma),
   });
 
-  return { dappName, address: me.address, h160: me.h160Address as `0x${string}`, contract, gas };
+  return { dappName, address: me.address, h160: me.h160Address as `0x${string}`, contract, gas, envio, firma };
 }

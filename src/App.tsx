@@ -115,6 +115,13 @@ export function App() {
         </p>
       )}
 
+      {session && session.envio !== 'Concedido' && (
+        <p className="aviso error">
+          El Host no dio permiso para enviar transacciones ({session.envio}). Las firmas van a fallar: cierra sesión,
+          vuelve a conectar y acepta el permiso.
+        </p>
+      )}
+
       {!session && !error && (
         <p className="aviso">
           Conecta tu cuenta desde Polkadot Desktop o la Polkadot App para usar el marketplace.

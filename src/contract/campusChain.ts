@@ -1,5 +1,6 @@
-import type { Session } from '../hub/hub';
+import { pedirPermisoEnvio, type Session } from '../hub/hub';
 import { explainDryRunFailure } from '../lib/dryRunError';
+import { explainTxFailure } from '../lib/txError';
 
 // Espejo de enum Status de contracts/CampusChain.sol (NONE = 0 significa "no existe").
 export const STATUS_LABEL = [
@@ -68,11 +69,16 @@ export async function write(session: Session, name: string, ...args: unknown[]):
   const preview = await method.query(...args, { origin: session.address });
   if (!preview.success) throw new Error(explainDryRunFailure(name, preview.value, session.address));
 
+  session.firma.error = undefined;
   const sent = await method.tx(...args, {
     waitFor: 'finalized',
     timeoutMs: 300_000,
   });
-  if (!sent.ok) throw sent.error instanceof Error ? sent.error : new Error(`${name} falló`);
+  if (!sent.ok) {
+    // Si el Host negó el permiso de transacciones, se vuelve a pedir para el siguiente intento.
+    if (session.envio !== 'Concedido') session.envio = await pedirPermisoEnvio();
+    throw new Error(explainTxFailure(name, sent.error, session.firma.error));
+  }
   return preview.value;
 }
 
