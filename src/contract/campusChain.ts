@@ -1,4 +1,5 @@
 import type { Session } from '../hub/hub';
+import { detalleError, mostrarError } from '../lib/toast';
 
 // Espejo de enum Status de contracts/CampusChain.sol (NONE = 0 significa "no existe").
 export const STATUS_LABEL = [
@@ -51,10 +52,25 @@ function contractMethod(session: Session, name: string): Method {
   return (session.contract as unknown as Record<string, Method>)[name];
 }
 
+// El SDK devuelve en un revert { reason, decoded: { errorName } }; si no, el valor crudo del Host.
+// Se muestra el nombre del error del contrato, no el objeto entero.
+function motivo(value: unknown): string {
+  if (value && typeof value === 'object') {
+    const v = value as { reason?: unknown; decoded?: { errorName?: string } };
+    if (v.decoded?.errorName) return v.decoded.errorName;
+    if (v.reason) return String(v.reason);
+  }
+  try {
+    return JSON.stringify(value, (_, x) => (typeof x === 'bigint' ? x.toString() : x));
+  } catch {
+    return String(value);
+  }
+}
+
 // Lectura: devuelve el valor o lanza con el motivo del revert.
 async function read<T>(session: Session, name: string, ...args: unknown[]): Promise<T> {
   const r = await contractMethod(session, name).query(...args, { origin: session.address });
-  if (!r.success) throw new Error(`${name} revirtió: ${String(r.value)}`);
+  if (!r.success) throw new Error(`${name} revirtió: ${motivo(r.value)}`);
   return r.value as T;
 }
 
@@ -62,14 +78,20 @@ async function read<T>(session: Session, name: string, ...args: unknown[]): Prom
 // Así un revert se muestra sin pedir firma al usuario en el Host.
 export async function write(session: Session, name: string, ...args: unknown[]): Promise<void> {
   const method = contractMethod(session, name);
-  const preview = await method.query(...args, { origin: session.address });
-  if (!preview.success) throw new Error(`${name} revirtió: ${String(preview.value)}`);
+  try {
+    const preview = await method.query(...args, { origin: session.address });
+    if (!preview.success) throw new Error(`${name} revirtió: ${motivo(preview.value)}`);
 
-  const sent = await method.tx(...args, {
-    waitFor: 'finalized',
-    timeoutMs: 300_000,
-  });
-  if (!sent.ok) throw sent.error instanceof Error ? sent.error : new Error(`${name} falló`);
+    const sent = await method.tx(...args, {
+      waitFor: 'finalized',
+      timeoutMs: 300_000,
+    });
+    if (!sent.ok) throw new Error(`${name} falló: ${detalleError(sent.error)}`);
+  } catch (e) {
+    // Se muestra el detalle completo en pantalla; el error sigue subiendo para que la página lo maneje.
+    mostrarError(`${name}\n${detalleError(e)}`);
+    throw e;
+  }
 }
 
 export async function listProducts(session: Session): Promise<Product[]> {

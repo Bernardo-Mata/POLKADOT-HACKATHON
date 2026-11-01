@@ -433,3 +433,38 @@ section > h2 {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Toast de error de transacción */
+
+.toast {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px 14px;
+  border: 1px solid var(--error);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--texto);
+  box-shadow: var(--sombra);
+  z-index: 10;
+}
+
+.toast-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--error);
+}
+
+.toast pre {
+  margin: 8px 0 0;
+  max-height: 180px;
+  overflow: auto;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

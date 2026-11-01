@@ -3,6 +3,7 @@ import { connectSession, OutsideHostError, type Session } from './hub/hub';
 import { CatalogView } from './pages/CatalogView';
 import { SellView } from './pages/SellView';
 import { OrdersView } from './pages/OrdersView';
+import { Toast } from './components/Toast';
 
 type Tab = 'catalogo' | 'vender' | 'pedidos';
 
@@ -71,6 +72,8 @@ export function App() {
           {tab === 'pedidos' && <OrdersView session={session} />}
         </>
       )}
+
+      <Toast />
 
       <footer className="pie">
         Pago reportado por el vendedor: CampusChain registra declaraciones, no verifica transferencias.
