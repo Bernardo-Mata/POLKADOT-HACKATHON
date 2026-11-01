@@ -1,5 +1,5 @@
 import type { Session } from '../hub/hub';
-import { describeDryRunFailure } from '../lib/dryRunError';
+import { explainDryRunFailure } from '../lib/dryRunError';
 
 // Espejo de enum Status de contracts/CampusChain.sol (NONE = 0 significa "no existe").
 export const STATUS_LABEL = [
@@ -55,7 +55,7 @@ function contractMethod(session: Session, name: string): Method {
 // Lectura: devuelve el valor o lanza con el motivo del revert.
 async function read<T>(session: Session, name: string, ...args: unknown[]): Promise<T> {
   const r = await contractMethod(session, name).query(...args, { origin: session.address });
-  if (!r.success) throw new Error(`${name} falló: ${describeDryRunFailure(r.value)}`);
+  if (!r.success) throw new Error(explainDryRunFailure(name, r.value, session.address));
   return r.value as T;
 }
 
@@ -66,7 +66,7 @@ async function read<T>(session: Session, name: string, ...args: unknown[]): Prom
 export async function write(session: Session, name: string, ...args: unknown[]): Promise<unknown> {
   const method = contractMethod(session, name);
   const preview = await method.query(...args, { origin: session.address });
-  if (!preview.success) throw new Error(`${name} falló: ${describeDryRunFailure(preview.value)}`);
+  if (!preview.success) throw new Error(explainDryRunFailure(name, preview.value, session.address));
 
   const sent = await method.tx(...args, {
     waitFor: 'finalized',

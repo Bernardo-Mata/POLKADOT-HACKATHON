@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { describeDryRunFailure } from './dryRunError';
+import { describeDryRunFailure, explainDryRunFailure } from './dryRunError';
+
+// Respuesta real de ReviveApi.call para una cuenta nueva sin PAS (Products Devnet, 2026-10-31).
+const SIN_FONDOS = { type: 'Module', value: { type: 'Revive', value: { type: 'StorageDepositNotEnoughFunds' } } };
+
+describe('explainDryRunFailure', () => {
+  it('explica la falta de PAS e incluye la cuenta', () => {
+    const msg = explainDryRunFailure('createProduct', SIN_FONDOS, '5C857s…');
+    expect(msg).toMatch(/^createProduct: Tu cuenta no tiene PAS/);
+    expect(msg).toContain('5C857s…');
+    expect(msg).toContain('faucet.polkadot.io');
+  });
+
+  it('cae en la descripción técnica para errores desconocidos', () => {
+    expect(explainDryRunFailure('acceptOrder', { type: 'Module', value: { type: 'Otro' } }, 'x')).toBe(
+      'acceptOrder falló: Module › Otro',
+    );
+  });
+});
 
 describe('describeDryRunFailure', () => {
   it('aplana los errores de la cadena en una ruta', () => {

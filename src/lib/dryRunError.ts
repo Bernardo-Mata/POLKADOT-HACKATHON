@@ -23,6 +23,24 @@ export function describeDryRunFailure(value: unknown): string {
   return safeJson(value);
 }
 
+// Errores de la cadena que el usuario puede resolver, con qué hacer. `cuenta` es la SS58 del Product.
+const AYUDA: Record<string, (cuenta: string) => string> = {
+  StorageDepositNotEnoughFunds: (cuenta) =>
+    `Tu cuenta no tiene PAS para el depósito de almacenamiento (unos 0.03 PAS por producto o pedido). ` +
+    `Pide PAS en faucet.polkadot.io (red Paseo → Asset Hub 1000) para la cuenta ${cuenta} y vuelve a intentar.`,
+  StorageDepositLimitExhausted: (cuenta) =>
+    `Se agotó el límite de depósito de almacenamiento. Pide PAS para la cuenta ${cuenta} y vuelve a intentar.`,
+  AccountUnmapped: (cuenta) => `La cuenta ${cuenta} no está mapeada a una dirección 0x… en la cadena.`,
+  OutOfGas: () => 'Se acabó el gas de la app. Vuelve a conectar y acepta el permiso de gas.',
+};
+
+// Mensaje para el usuario: la ayuda si el error se conoce, si no la descripción técnica.
+export function explainDryRunFailure(method: string, value: unknown, cuenta: string): string {
+  const detalle = describeDryRunFailure(value);
+  const conocido = Object.keys(AYUDA).find((k) => detalle.split(' › ').includes(k));
+  return conocido ? `${method}: ${AYUDA[conocido](cuenta)}` : `${method} falló: ${detalle}`;
+}
+
 function formatArgs(args: unknown): string {
   return Array.isArray(args) && args.length > 0 ? `(${args.map(String).join(', ')})` : '';
 }

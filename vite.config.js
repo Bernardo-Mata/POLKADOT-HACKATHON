@@ -28,4 +28,6 @@ export default defineConfig({
   // Rutas relativas: el bundle se sirve desde un CID de Bulletin, no desde la raíz de un dominio.
   base: './',
   plugins: [soloDescriptorDevnet()],
+  // Sello de versión en el pie: el Host puede servir un build viejo en caché.
+  define: { __BUILD__: JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC') },
 });

@@ -76,6 +76,7 @@ export function App() {
             setUsuario(u);
           }}
         />
+        <footer className="pie">Versión {__BUILD__}</footer>
       </main>
     );
   }
@@ -100,6 +101,12 @@ export function App() {
       </header>
 
       {error && <p className="aviso error">{error}</p>}
+
+      {session && (
+        <p className="pequeno">
+          Tu cuenta del Product (para pedir PAS en el faucet): <code>{session.address}</code>
+        </p>
+      )}
 
       {session && session.gas !== 'Allocated' && (
         <p className="aviso error">
@@ -135,6 +142,8 @@ export function App() {
 
       <footer className="pie">
         Pago reportado por el vendedor: CampusChain registra declaraciones, no verifica transferencias.
+        <br />
+        Versión {__BUILD__}
       </footer>
     </main>
   );
